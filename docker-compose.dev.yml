@@ -1,0 +1,62 @@
+name: local-kontrol-panel
+
+services:
+  # Backend en modo Watch
+  server:
+    image: node:22-alpine
+    working_dir: /app/server
+    command: sh -c "corepack enable && pnpm install && pnpm run start:dev"
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    volumes:
+      - ./server:/app/server
+      - /app/server/node_modules # Evita que los módulos locales sobreescriban los del contenedor
+    env_file:
+      - .env
+    environment:
+      - MONGO_URI=mongodb://${MONGO_HOST:-mongo}:${MONGO_PORT:-27017}/${MONGO_DB:-nest}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+    depends_on:
+      - mongo
+      - redis
+    networks:
+      - dev-network
+
+  # Frontend en modo HMR
+  client:
+    image: node:22-alpine
+    working_dir: /app/client
+    command: sh -c "corepack enable && pnpm install && pnpm run dev --host"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./client:/app/client
+      - /app/client/node_modules
+    env_file:
+      - .env
+    networks:
+      - dev-network
+
+  mongo:
+    image: mongo:${MONGO_VERSION:-6.0}
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - dev-network
+
+  redis:
+    image: redis:${REDIS_VERSION:-alpine}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - dev-network
+
+networks:
+  dev-network:
+    driver: bridge
+
+volumes:
+  mongo_data:
